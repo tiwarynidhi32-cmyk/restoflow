@@ -1848,6 +1848,8 @@ const ActiveOrdersView = ({ orders, branch, onRefresh }: any) => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [showBill, setShowBill] = useState(false);
   const [isDuplicate, setIsDuplicate] = useState(false);
+  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+  const [orderToPrintDuplicate, setOrderToPrintDuplicate] = useState<any>(null);
 
   const handleComplete = async () => {
     if (!selectedOrder) return;
@@ -1902,7 +1904,7 @@ const ActiveOrdersView = ({ orders, branch, onRefresh }: any) => {
                     <Button variant="ghost" className="h-8 w-8 p-0" title="View Bill" onClick={(e: any) => { e.stopPropagation(); openBill(order, false); }}>
                       <Eye size={16} />
                     </Button>
-                    <Button variant="ghost" className="h-8 w-8 p-0" title="Print Duplicate" onClick={(e: any) => { e.stopPropagation(); openBill(order, true); }}>
+                    <Button variant="ghost" className="h-8 w-8 p-0" title="Print Duplicate" onClick={(e: any) => { e.stopPropagation(); setOrderToPrintDuplicate(order); setShowDuplicateConfirm(true); }}>
                       <Printer size={16} />
                     </Button>
                   </div>
@@ -1954,6 +1956,27 @@ const ActiveOrdersView = ({ orders, branch, onRefresh }: any) => {
       </div>
       {showBill && selectedOrder && (
         <BillModal order={selectedOrder} branch={branch} isDuplicate={isDuplicate} onClose={() => setShowBill(false)} />
+      )}
+
+      {showDuplicateConfirm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-[110]">
+          <Card className="w-full max-w-sm p-6">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center">
+                <AlertTriangle size={24} />
+              </div>
+              <h3 className="text-xl font-bold">Print Duplicate Bill?</h3>
+              <p className="text-zinc-500 text-sm">Are you sure you want to print a duplicate bill for Order #{orderToPrintDuplicate?.id}?</p>
+              <div className="flex gap-3 w-full pt-2">
+                <Button variant="secondary" className="flex-1" onClick={() => setShowDuplicateConfirm(false)}>Cancel</Button>
+                <Button className="flex-1" onClick={() => {
+                  setShowDuplicateConfirm(false);
+                  openBill(orderToPrintDuplicate, true);
+                }}>Yes, Print</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );
