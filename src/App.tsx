@@ -30,10 +30,11 @@ import {
   Trash2,
   Printer,
   Eye,
-  Droplets
+  Droplets,
+  Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, Branch, InventoryItem, Vendor, Table, MenuCategory, MenuItem, LedgerEntry } from './types';
+import { User, Branch, InventoryItem, Vendor, Table, MenuCategory, MenuItem, LedgerEntry, Reservation } from './types';
 
 // --- Helpers ---
 
@@ -110,12 +111,12 @@ const Select = ({ label, options, ...props }: any) => (
 const QuickLoginButton = ({ icon, label, onClick, color }: any) => (
   <button 
     onClick={onClick}
-    className={`${color} text-white p-6 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl group`}
+    className={`${color} text-white p-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg group`}
   >
-    <div className="p-3 bg-white/10 rounded-xl group-hover:bg-white/20 transition-colors">
+    <div className="p-2 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
       {icon}
     </div>
-    <span className="font-bold text-sm tracking-wide uppercase">{label}</span>
+    <span className="font-bold text-[10px] tracking-wide uppercase">{label}</span>
   </button>
 );
 
@@ -123,6 +124,7 @@ const QuickLoginButton = ({ icon, label, onClick, color }: any) => (
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [view, setView] = useState('dashboard');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -134,6 +136,7 @@ export default function App() {
   const [todayStats, setTodayStats] = useState({ cash: 0, bank: 0, total: 0 });
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -165,7 +168,7 @@ export default function App() {
         setUsers(uData);
       } else if (user.branch_id) {
         const bId = user.branch_id;
-        const [inv, vend, tabs, cats, items, led, stats, uData, orders] = await Promise.all([
+        const [inv, vend, tabs, cats, items, led, stats, uData, orders, resData] = await Promise.all([
           safeFetchJson(`/api/inventory/${bId}`),
           safeFetchJson(`/api/vendors/${bId}`),
           safeFetchJson(`/api/tables/${bId}`),
@@ -175,6 +178,7 @@ export default function App() {
           safeFetchJson(`/api/reports/today/${bId}`),
           safeFetchJson(`/api/users/${bId}`),
           safeFetchJson(`/api/orders/${bId}`),
+          safeFetchJson(`/api/reservations/${bId}`),
         ]);
         setInventory(inv);
         setVendors(vend);
@@ -185,6 +189,7 @@ export default function App() {
         setTodayStats(stats);
         setUsers(uData);
         setActiveOrders(orders);
+        setReservations(resData);
       }
     } catch (err) {
       console.error(err);
@@ -214,52 +219,81 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-2xl"
         >
-          <Card className="p-10">
-            <div className="flex flex-col items-center mb-10">
-              <div className="w-20 h-20 bg-black rounded-2xl flex items-center justify-center mb-4 shadow-xl">
-                <Utensils className="text-white w-10 h-10" />
+          <Card className="p-8 md:p-12">
+            <div className="flex flex-col items-center mb-8">
+              <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-4 shadow-xl">
+                <Utensils className="text-white w-8 h-8" />
               </div>
               <h1 className="text-3xl font-black tracking-tighter uppercase">RestoFlow POS</h1>
-              <p className="text-zinc-500 text-sm font-medium mt-1">Select your access point</p>
+              <p className="text-zinc-500 text-sm font-medium mt-1">Select your role or login directly</p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-10">
               <QuickLoginButton 
-                icon={<Settings size={24} />} 
-                label="Super Admin" 
-                onClick={() => handleQuickLogin('admin', 'admin')}
+                icon={<Settings size={20} />} 
+                label="Admin" 
+                onClick={() => setLoginForm({ ...loginForm, username: 'DC' })}
                 color="bg-zinc-900"
               />
               <QuickLoginButton 
-                icon={<Store size={24} />} 
-                label="Main Branch" 
-                onClick={() => handleQuickLogin('branch', '12345')}
+                icon={<Store size={20} />} 
+                label="Branch" 
+                onClick={() => setLoginForm({ ...loginForm, username: 'branch' })}
                 color="bg-indigo-600"
               />
               <QuickLoginButton 
-                icon={<Store size={24} />} 
-                label="Downtown" 
-                onClick={() => handleQuickLogin('downtown_admin', '12345')}
-                color="bg-purple-600"
-              />
-              <QuickLoginButton 
-                icon={<ChefHat size={24} />} 
+                icon={<ChefHat size={20} />} 
                 label="Kitchen" 
-                onClick={() => handleQuickLogin('kot', '12345')}
+                onClick={() => setLoginForm({ ...loginForm, username: 'kot' })}
                 color="bg-orange-600"
               />
               <QuickLoginButton 
-                icon={<Droplets size={24} />} 
+                icon={<Droplets size={20} />} 
                 label="Waiter" 
-                onClick={() => handleQuickLogin('waiter', '12345')}
+                onClick={() => setLoginForm({ ...loginForm, username: 'waiter' })}
                 color="bg-blue-600"
               />
               <QuickLoginButton 
-                icon={<Users size={24} />} 
+                icon={<Users size={20} />} 
                 label="Staff" 
-                onClick={() => handleQuickLogin('staff', '12345')}
+                onClick={() => setLoginForm({ ...loginForm, username: 'staff' })}
                 color="bg-emerald-600"
               />
+              <QuickLoginButton 
+                icon={<Store size={20} />} 
+                label="Cafe" 
+                onClick={() => setLoginForm({ ...loginForm, username: 'downtown_admin' })}
+                color="bg-purple-600"
+              />
+            </div>
+
+            <div className="max-w-sm mx-auto">
+              <form 
+                onSubmit={(e: any) => {
+                  e.preventDefault();
+                  handleQuickLogin(loginForm.username, loginForm.password);
+                }}
+                className="space-y-4"
+              >
+                <Input 
+                  label="User ID" 
+                  value={loginForm.username}
+                  onChange={(e: any) => setLoginForm({ ...loginForm, username: e.target.value })}
+                  placeholder="Enter your ID" 
+                  required 
+                />
+                <Input 
+                  label="Password" 
+                  type="password" 
+                  value={loginForm.password}
+                  onChange={(e: any) => setLoginForm({ ...loginForm, password: e.target.value })}
+                  placeholder="•••••" 
+                  required 
+                />
+                <Button type="submit" className="w-full py-3">
+                  Login to Panel
+                </Button>
+              </form>
             </div>
 
             <div className="mt-12 text-center">
@@ -310,6 +344,7 @@ export default function App() {
               <NavItem icon={<Package size={18} />} label="Inventory" active={view === 'inventory'} onClick={() => setView('inventory')} />
               <NavItem icon={<ChefHat size={18} />} label="Menu" active={view === 'menu'} onClick={() => setView('menu')} />
               <NavItem icon={<TableIcon size={18} />} label="Tables" active={view === 'tables'} onClick={() => setView('tables')} />
+              <NavItem icon={<Calendar size={18} />} label="Reservations" active={view === 'reservations'} onClick={() => setView('reservations')} />
               <NavItem icon={<Users size={18} />} label="Vendors" active={view === 'vendors'} onClick={() => setView('vendors')} />
               <NavItem icon={<Users size={18} />} label="Staff Management" active={view === 'staff'} onClick={() => setView('staff')} />
               <NavItem icon={<FileText size={18} />} label="Reports" active={view === 'reports'} onClick={() => setView('reports')} />
@@ -360,6 +395,7 @@ export default function App() {
             {view === 'vendors' && <VendorsView vendors={vendors} branchId={user.branch_id!} onRefresh={fetchData} />}
             {view === 'menu' && <MenuView categories={menuCategories} items={menuItems} branchId={user.branch_id!} onRefresh={fetchData} />}
             {view === 'tables' && <TablesView tables={tables} branchId={user.branch_id!} onRefresh={fetchData} />}
+            {view === 'reservations' && <ReservationsView reservations={reservations} tables={tables} branchId={user.branch_id!} onRefresh={fetchData} />}
             {view === 'pos' && <POSView tables={tables} menuItems={menuItems} categories={menuCategories} branchId={user.branch_id!} onRefresh={fetchData} />}
             {view === 'reports' && <ReportsView branchId={user.branch_id!} />}
             {view === 'settings' && <SettingsView branchId={user.branch_id!} onRefresh={fetchData} />}
@@ -585,7 +621,15 @@ const StaffView = ({ users, branches, currentUser, onRefresh }: any) => {
 
 const BranchesView = ({ branches, onRefresh }: any) => {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: '', address: '', contact: '' });
+  const [form, setForm] = useState({ 
+    name: '', 
+    address: '', 
+    contact: '',
+    phone: '',
+    email: '',
+    parent_company: '',
+    gst_number: ''
+  });
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
@@ -596,6 +640,7 @@ const BranchesView = ({ branches, onRefresh }: any) => {
         body: JSON.stringify(form)
       });
       setShowAdd(false);
+      setForm({ name: '', address: '', contact: '', phone: '', email: '', parent_company: '', gst_number: '' });
       onRefresh();
     } catch (err: any) {
       alert(err.message);
@@ -635,8 +680,16 @@ const BranchesView = ({ branches, onRefresh }: any) => {
               <h3 className="text-xl font-bold mb-6">Add New Branch</h3>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <Input label="Branch Name" value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} required />
+                <Input label="A Unit Of" value={form.parent_company} onChange={(e: any) => setForm({ ...form, parent_company: e.target.value })} placeholder="Parent Company Name" />
                 <Input label="Address" value={form.address} onChange={(e: any) => setForm({ ...form, address: e.target.value })} required />
-                <Input label="Contact Details" value={form.contact} onChange={(e: any) => setForm({ ...form, contact: e.target.value })} required />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Contact Person" value={form.contact} onChange={(e: any) => setForm({ ...form, contact: e.target.value })} required />
+                  <Input label="Phone Number" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} required />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Email" type="email" value={form.email} onChange={(e: any) => setForm({ ...form, email: e.target.value })} required />
+                  <Input label="GST Number" value={form.gst_number} onChange={(e: any) => setForm({ ...form, gst_number: e.target.value })} />
+                </div>
                 <div className="flex gap-3 pt-4">
                   <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowAdd(false)}>Cancel</Button>
                   <Button type="submit" className="flex-1">Create Branch</Button>
@@ -1292,6 +1345,137 @@ const TablesView = ({ tables, branchId, onRefresh }: any) => {
   );
 };
 
+const ReservationsView = ({ reservations, tables, branchId, onRefresh }: any) => {
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ 
+    table_id: '', 
+    customer_name: '', 
+    customer_contact: '', 
+    reservation_time: '', 
+    guests: 2 
+  });
+
+  const handleSubmit = async (e: any) => {
+    e.preventDefault();
+    try {
+      await safeFetchJson('/api/reservations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, branch_id: branchId })
+      });
+      setShowAdd(false);
+      setForm({ table_id: '', customer_name: '', customer_contact: '', reservation_time: '', guests: 2 });
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const updateStatus = async (id: number, status: string) => {
+    try {
+      await safeFetchJson(`/api/reservations/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const availableTables = tables.filter((t: any) => t.status === 'available');
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold tracking-tight">Reservations</h2>
+        <Button onClick={() => setShowAdd(true)}><Plus size={18} /> New Reservation</Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {reservations.map((r: any) => (
+          <Card key={r.id} className="p-6 space-y-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-bold text-lg">{r.customer_name}</h3>
+                <p className="text-sm text-zinc-500 font-medium">{r.customer_contact}</p>
+              </div>
+              <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                r.status === 'confirmed' ? 'bg-blue-100 text-blue-600' :
+                r.status === 'cancelled' ? 'bg-red-100 text-red-600' :
+                'bg-emerald-100 text-emerald-600'
+              }`}>
+                {r.status}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 py-4 border-y border-zinc-100">
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-bold text-zinc-400">Table</p>
+                <p className="font-bold">Table {r.table_number}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-bold text-zinc-400">Guests</p>
+                <p className="font-bold">{r.guests} People</p>
+              </div>
+              <div className="space-y-1 col-span-2">
+                <p className="text-[10px] uppercase font-bold text-zinc-400">Time</p>
+                <p className="font-bold">{new Date(r.reservation_time).toLocaleString()}</p>
+              </div>
+            </div>
+
+            {r.status === 'confirmed' && (
+              <div className="flex gap-2 pt-2">
+                <Button variant="secondary" className="flex-1 text-red-600 hover:bg-red-50" onClick={() => updateStatus(r.id, 'cancelled')}>Cancel</Button>
+                <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => updateStatus(r.id, 'completed')}>Arrived</Button>
+              </div>
+            )}
+          </Card>
+        ))}
+        {reservations.length === 0 && (
+          <div className="col-span-full py-20 text-center text-zinc-400">
+            <Calendar size={48} className="mx-auto mb-4 opacity-20" />
+            <p>No reservations found</p>
+          </div>
+        )}
+      </div>
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+            <Card className="w-full max-w-md p-8">
+              <h3 className="text-xl font-bold mb-6">New Reservation</h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <Input label="Customer Name" value={form.customer_name} onChange={(e: any) => setForm({ ...form, customer_name: e.target.value })} required />
+                <Input label="Contact Number" value={form.customer_contact} onChange={(e: any) => setForm({ ...form, customer_contact: e.target.value })} required />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Guests" type="number" value={form.guests} onChange={(e: any) => setForm({ ...form, guests: parseInt(e.target.value) })} required />
+                  <Select 
+                    label="Select Table" 
+                    value={form.table_id} 
+                    onChange={(e: any) => setForm({ ...form, table_id: e.target.value })} 
+                    options={[
+                      { value: '', label: 'Choose Table' },
+                      ...availableTables.map((t: any) => ({ value: t.id, label: `Table ${t.number} (${t.capacity} seats)` }))
+                    ]}
+                    required 
+                  />
+                </div>
+                <Input label="Date & Time" type="datetime-local" value={form.reservation_time} onChange={(e: any) => setForm({ ...form, reservation_time: e.target.value })} required />
+                <div className="flex gap-3 pt-4">
+                  <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowAdd(false)}>Cancel</Button>
+                  <Button type="submit" className="flex-1">Confirm Reservation</Button>
+                </div>
+              </form>
+            </Card>
+          </motion.div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const POSView = ({ tables, menuItems, categories, branchId, onRefresh }: any) => {
   const [cart, setCart] = useState<any[]>([]);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
@@ -1589,14 +1773,22 @@ const BillModal = ({ order, branch, onClose, isDuplicate = false }: any) => {
         )}
         <div className="p-8 space-y-6 print:p-4 relative z-10">
           {/* Header */}
-          <div className="text-center space-y-2">
+          <div className="text-center space-y-1">
             {branch?.logo_url && (
-              <img src={branch.logo_url} alt="Logo" className="w-16 h-16 mx-auto object-contain mb-2" referrerPolicy="no-referrer" />
+              <img src={branch.logo_url} alt="Logo" className="w-20 h-20 mx-auto object-contain mb-2" referrerPolicy="no-referrer" />
             )}
             <h2 className="text-2xl font-bold uppercase tracking-tight">{branch?.name || 'Restaurant Name'}</h2>
-            <p className="text-xs text-zinc-500">{branch?.address}</p>
-            <p className="text-xs text-zinc-500">Contact: {branch?.contact}</p>
-            {branch?.gst_number && <p className="text-xs font-bold">GSTIN: {branch.gst_number}</p>}
+            {branch?.parent_company && (
+              <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider italic">A Unit of {branch.parent_company}</p>
+            )}
+            <div className="pt-1">
+              <p className="text-xs text-zinc-500 leading-tight">{branch?.address}</p>
+              <div className="flex items-center justify-center gap-3 text-xs text-zinc-500 mt-1">
+                {branch?.phone && <span>Ph: {branch.phone}</span>}
+                {branch?.email && <span>Email: {branch.email}</span>}
+              </div>
+              {branch?.gst_number && <p className="text-xs font-bold mt-1">GSTIN: {branch.gst_number}</p>}
+            </div>
           </div>
 
           <div className="border-y border-dashed border-zinc-200 py-4 flex justify-between text-xs font-medium">
@@ -1954,6 +2146,17 @@ const SettingsView = ({ branchId, onRefresh }: any) => {
     }
   };
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBranch({ ...branch, logo_url: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   if (loading) return <div className="p-8 text-center">Loading settings...</div>;
 
   return (
@@ -1972,39 +2175,80 @@ const SettingsView = ({ branchId, onRefresh }: any) => {
               required 
             />
             <Input 
-              label="Contact Number" 
+              label="A Unit Of (Parent Company)" 
+              value={branch.parent_company || ''} 
+              onChange={(e: any) => setBranch({ ...branch, parent_company: e.target.value })} 
+              placeholder="e.g. ABC Hospitality Group"
+            />
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Input 
+              label="Contact Person" 
               value={branch.contact} 
               onChange={(e: any) => setBranch({ ...branch, contact: e.target.value })} 
               required 
             />
+            <Input 
+              label="Phone Number" 
+              value={branch.phone || ''} 
+              onChange={(e: any) => setBranch({ ...branch, phone: e.target.value })} 
+              required 
+            />
           </div>
-          <Input 
-            label="Address" 
-            value={branch.address} 
-            onChange={(e: any) => setBranch({ ...branch, address: e.target.value })} 
-            required 
-          />
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Input 
+              label="Email Address" 
+              type="email"
+              value={branch.email || ''} 
+              onChange={(e: any) => setBranch({ ...branch, email: e.target.value })} 
+              required 
+            />
             <Input 
               label="GST Number" 
               value={branch.gst_number || ''} 
               onChange={(e: any) => setBranch({ ...branch, gst_number: e.target.value })} 
               placeholder="e.g. 22AAAAA0000A1Z5"
             />
-            <Input 
-              label="Logo URL" 
-              value={branch.logo_url || ''} 
-              onChange={(e: any) => setBranch({ ...branch, logo_url: e.target.value })} 
-              placeholder="https://..."
-            />
           </div>
-          
-          {branch.logo_url && (
-            <div className="pt-4">
-              <p className="text-xs font-bold text-zinc-500 uppercase mb-2">Logo Preview</p>
-              <img src={branch.logo_url} alt="Logo Preview" className="h-20 w-20 object-contain border rounded-lg p-2" referrerPolicy="no-referrer" />
+
+          <Input 
+            label="Address" 
+            value={branch.address} 
+            onChange={(e: any) => setBranch({ ...branch, address: e.target.value })} 
+            required 
+          />
+
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Restaurant Logo</label>
+            <div className="flex items-center gap-4">
+              <div className="h-20 w-20 bg-zinc-50 border border-zinc-200 rounded-lg flex items-center justify-center overflow-hidden">
+                {branch.logo_url ? (
+                  <img src={branch.logo_url} alt="Logo" className="h-full w-full object-contain" referrerPolicy="no-referrer" />
+                ) : (
+                  <Camera className="text-zinc-300" size={24} />
+                )}
+              </div>
+              <div className="flex-1">
+                <input 
+                  type="file" 
+                  id="logo-upload" 
+                  className="hidden" 
+                  accept="image/*" 
+                  onChange={handleLogoUpload} 
+                />
+                <label 
+                  htmlFor="logo-upload" 
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 rounded-lg text-sm font-medium cursor-pointer hover:bg-zinc-50 transition-all"
+                >
+                  <Upload size={16} />
+                  {branch.logo_url ? 'Change Logo' : 'Upload Logo'}
+                </label>
+                <p className="text-[10px] text-zinc-400 mt-2">Recommended: Square image, max 2MB</p>
+              </div>
             </div>
-          )}
+          </div>
 
           <div className="pt-6">
             <Button type="submit" className="w-full py-4" disabled={saving}>

@@ -13,10 +13,19 @@ db.exec(`
     name TEXT NOT NULL,
     address TEXT,
     contact TEXT,
+    phone TEXT,
+    email TEXT,
+    parent_company TEXT,
     gst_number TEXT,
     logo_url TEXT
   );
+`);
 
+try { db.exec("ALTER TABLE branches ADD COLUMN phone TEXT"); } catch(e) {}
+try { db.exec("ALTER TABLE branches ADD COLUMN email TEXT"); } catch(e) {}
+try { db.exec("ALTER TABLE branches ADD COLUMN parent_company TEXT"); } catch(e) {}
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
@@ -132,12 +141,26 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (branch_id) REFERENCES branches(id)
   );
+
+  CREATE TABLE IF NOT EXISTS reservations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    branch_id INTEGER NOT NULL,
+    table_id INTEGER NOT NULL,
+    customer_name TEXT NOT NULL,
+    customer_contact TEXT NOT NULL,
+    reservation_time DATETIME NOT NULL,
+    guests INTEGER NOT NULL,
+    status TEXT DEFAULT 'confirmed', -- 'confirmed', 'cancelled', 'completed'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (branch_id) REFERENCES branches(id),
+    FOREIGN KEY (table_id) REFERENCES tables(id)
+  );
 `);
 
 // Seed Super Admin if not exists
 const superAdmin = db.prepare("SELECT * FROM users WHERE role = 'super_admin'").get();
 if (!superAdmin) {
-  db.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run("admin", "admin", "super_admin");
+  db.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run("DC", "12345", "super_admin");
 }
 
 // Seed Default Branch and Specific Users
@@ -304,6 +327,28 @@ for (const bId of allBranchIds) {
   }
 }
 
+// Seed Reservations
+for (const bId of allBranchIds) {
+  const existingReservations = db.prepare("SELECT COUNT(*) as count FROM reservations WHERE branch_id = ?").get(bId);
+  if ((existingReservations as any).count === 0) {
+    const tables = db.prepare("SELECT id FROM tables WHERE branch_id = ?").all(bId);
+    if (tables.length > 0) {
+      const resStmt = db.prepare('INSERT INTO reservations (branch_id, table_id, customer_name, customer_contact, reservation_time, guests, status) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      const tableUpdateStmt = db.prepare('UPDATE tables SET status = ? WHERE id = ?');
+
+      // Reservation 1: Today, in 2 hours
+      const time1 = new Date(Date.now() + 2 * 3600000).toISOString();
+      resStmt.run(bId, (tables[0] as any).id, 'Rahul Sharma', '9876543210', time1, 2, 'confirmed');
+      tableUpdateStmt.run('reserved', (tables[0] as any).id);
+
+      // Reservation 2: Tomorrow
+      const time2 = new Date(Date.now() + 24 * 3600000).toISOString();
+      resStmt.run(bId, (tables[1] as any).id, 'Priya Singh', '9123456789', time2, 4, 'confirmed');
+      tableUpdateStmt.run('reserved', (tables[1] as any).id);
+    }
+  }
+}
+
 // Seed Orders and Ledger for Demo
 for (const bId of allBranchIds) {
   const existingOrders = db.prepare("SELECT COUNT(*) as count FROM orders WHERE branch_id = ?").get(bId);
@@ -418,9 +463,9 @@ async function startServer() {
 
   app.put("/api/branches/:id", (req, res) => {
     try {
-      const { name, address, contact, gst_number, logo_url } = req.body;
-      db.prepare("UPDATE branches SET name = ?, address = ?, contact = ?, gst_number = ?, logo_url = ? WHERE id = ?")
-        .run(name, address, contact, gst_number, logo_url, req.params.id);
+      const { name, address, contact, phone, email, parent_company, gst_number, logo_url } = req.body;
+      db.prepare("UPDATE branches SET name = ?, address = ?, contact = ?, phone = ?, email = ?, parent_company = ?, gst_number = ?, logo_url = ? WHERE id = ?")
+        .run(name, address, contact, phone, email, parent_company, gst_number, logo_url, req.params.id);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -428,8 +473,9 @@ async function startServer() {
   });
   app.post("/api/branches", (req, res) => {
     try {
-      const { name, address, contact } = req.body;
-      const result = db.prepare("INSERT INTO branches (name, address, contact) VALUES (?, ?, ?)").run(name, address, contact);
+      const { name, address, contact, phone, email, parent_company, gst_number, logo_url } = req.body;
+      const result = db.prepare("INSERT INTO branches (name, address, contact, phone, email, parent_company, gst_number, logo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(name, address, contact, phone || null, email || null, parent_company || null, gst_number || null, logo_url || null);
       res.json({ id: result.lastInsertRowid });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -790,6 +836,58 @@ async function startServer() {
       const { username, password, role, branch_id } = req.body;
       const result = db.prepare("INSERT INTO users (username, password, role, branch_id) VALUES (?, ?, ?, ?)").run(username, password, role, branch_id || null);
       res.json({ id: result.lastInsertRowid });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Reservations
+  app.get("/api/reservations/:branchId", (req, res) => {
+    try {
+      const reservations = db.prepare(`
+        SELECT r.*, t.number as table_number 
+        FROM reservations r 
+        JOIN tables t ON r.table_id = t.id 
+        WHERE r.branch_id = ? 
+        ORDER BY r.reservation_time ASC
+      `).all(req.params.branchId);
+      res.json(reservations);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/reservations", (req, res) => {
+    try {
+      const { branch_id, table_id, customer_name, customer_contact, reservation_time, guests } = req.body;
+      const result = db.prepare(`
+        INSERT INTO reservations (branch_id, table_id, customer_name, customer_contact, reservation_time, guests) 
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(branch_id, table_id, customer_name, customer_contact, reservation_time, guests);
+      
+      // Update table status to reserved
+      db.prepare("UPDATE tables SET status = 'reserved' WHERE id = ?").run(table_id);
+      
+      res.json({ id: result.lastInsertRowid });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/reservations/:id/status", (req, res) => {
+    try {
+      const { status } = req.body;
+      const reservation = db.prepare("SELECT * FROM reservations WHERE id = ?").get(req.params.id) as any;
+      
+      db.prepare("UPDATE reservations SET status = ? WHERE id = ?").run(status, req.params.id);
+      
+      if (status === 'cancelled' || status === 'completed') {
+        db.prepare("UPDATE tables SET status = 'available' WHERE id = ?").run(reservation.table_id);
+      } else if (status === 'confirmed') {
+        db.prepare("UPDATE tables SET status = 'reserved' WHERE id = ?").run(reservation.table_id);
+      }
+      
+      res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

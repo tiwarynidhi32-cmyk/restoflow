@@ -10,6 +10,9 @@ export interface Branch {
   name: string;
   address: string;
   contact: string;
+  phone?: string;
+  email?: string;
+  parent_company?: string;
   gst_number?: string;
   logo_url?: string;
 }
@@ -65,4 +68,17 @@ export interface LedgerEntry {
   description: string;
   category: string;
   created_at: string;
+}
+
+export interface Reservation {
+  id: number;
+  branch_id: number;
+  table_id: number;
+  customer_name: string;
+  customer_contact: string;
+  reservation_time: string;
+  guests: number;
+  status: 'confirmed' | 'cancelled' | 'completed';
+  created_at: string;
+  table_number?: string;
 }
